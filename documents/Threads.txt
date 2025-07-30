@@ -1,0 +1,105 @@
+##  POSIX Threads in C
+
+We are going to use **POSIX threads (pthreads)**, which provide a standardized API for multithreading in C and C++. All the pthread functions are declared in the **`pthread.h`** header file, and programs using pthreads must be compiled with the **`-pthread`** flag.
+
+---
+
+## 🛠️ Thread Management with `pthread`
+
+### ### A. **Creating a Thread**
+
+Function:
+
+```c
+int pthread_create(pthread_t *thread,
+                   const pthread_attr_t *attr,
+                   void *(*start_routine)(void *),
+                   void *arg);
+```
+
+#### Parameters:
+
+* `pthread_t *thread`
+  → Pointer to a `pthread_t` variable where the system stores the thread ID after creation.
+
+* `const pthread_attr_t *attr`
+  → Thread attributes (e.g., stack size, scheduling policy). Use `NULL` for default attributes.
+
+* `void *(*start_routine)(void *)`
+  → Function that the thread will execute. Must match this signature. It returns a `void*` and takes a `void*` as input.
+
+* `void *arg`
+  → Pointer to argument passed to the thread function (can be `NULL`, or a pointer to a struct, etc.)
+
+#### Example:
+
+```c
+pthread_t tid;
+pthread_create(&tid, NULL, my_function, NULL);
+```
+
+---
+
+### ### B. **Waiting for a Thread to Finish (`pthread_join`)**
+
+Function:
+
+```c
+int pthread_join(pthread_t thread, void **retval);
+```
+
+#### Purpose:
+
+* Waits for the specified thread to terminate.
+* Retrieves the return value of the thread if needed.
+* Ensures that resources used by the thread are properly released.
+
+#### Parameters:
+
+* `pthread_t thread`
+  → The thread ID of the thread to wait for.
+
+* `void **retval`
+  → Pointer to a `void*` to store the thread’s return value. Use `NULL` if you don't care about the return value.
+
+#### Example:
+
+```c
+void *res;
+pthread_join(tid, &res);
+```
+
+---
+
+### ### C. **Exiting a Thread (`pthread_exit`)**
+
+Function:
+
+```c
+void pthread_exit(void *retval);
+```
+
+#### Purpose:
+
+* Terminates the calling thread.
+* Can optionally return a value to the thread that calls `pthread_join`.
+
+#### Notes:
+
+* If `main()` calls `pthread_exit`, the process continues running until all threads have finished.
+* If `main()` returns or calls `exit()`, the entire process including all threads is terminated.
+
+#### Example:
+
+```c
+pthread_exit(NULL);
+```
+
+---
+
+
+Let me know what's next.
+
+2. Synchronization routine :
+
+3. Condition variables :
