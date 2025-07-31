@@ -2,7 +2,7 @@
 CC = gcc
 
 # Choice of flags while compilation : CFLAGS = -Wall
-CFLAGS = -g -Wall
+CFLAGS = -g -Wall -pthread
 
 # Source files, all .c files in /src
 SRC = ./src/*.c
@@ -18,7 +18,7 @@ all: $(TARGET)
 
 # Link object files into final executable
 $(TARGET): $(OBJ)
-	$(CC) $(OBJ) -o $(TARGET)
+	$(CC) $(OBJ) -o $(TARGET) -pthread
 
 # Pattern rule to compile .c → .o
 ./bin/%.o: ./src/%.c

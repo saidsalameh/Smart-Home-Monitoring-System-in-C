@@ -73,7 +73,474 @@ Example:
     pthread_exit(NULL);
 
 
+Passing Arguments to Threads
+============================
 
-2. Synchronization routine :
+When using POSIX threads (pthreads), passing arguments to threads is commonly done through a structure.
+This allows you to pass multiple values cleanly using a single pointer argument.
 
-3. Condition variables :
+A. Creating a Struct
+--------------------
+
+To pass multiple values (such as an ID, a result value, and a message) to a thread, we define a structure like this:
+
+    struct thread_data {
+        int thread_id;
+        int sum;
+        char *message;
+    };
+
+B. Creating the Thread Function
+-------------------------------
+
+Your thread function should accept a `void *` argument, which you can cast to your specific structure type.
+
+Example:
+
+    void *printHelloWorld(void *thread_arg) {
+        struct thread_data *my_data;
+        int task_id = 0, sum = 0;
+        char hello_msg[255];
+
+        my_data = (struct thread_data *) thread_arg;
+
+        task_id = my_data->thread_id;
+        sum = my_data->sum;
+        strcpy(hello_msg, my_data->message);
+
+        printf("Task ID = %d, Sum = %d, Message = %s\n", task_id, sum, hello_msg);
+        
+        pthread_exit(NULL);
+    }
+
+C. Creating and Launching the Thread
+------------------------------------
+
+You can now create threads and pass instances of `thread_data` as arguments.
+
+Example:
+
+    #include <pthread.h>
+    #include <stdio.h>
+    #include <stdlib.h>
+    #include <string.h>
+
+    #define NUM_THREADS 2
+
+    struct thread_data {
+        int thread_id;
+        int sum;
+        char *message;
+    };
+
+    void *printHelloWorld(void *thread_arg) {
+        struct thread_data *my_data = (struct thread_data *) thread_arg;
+        printf("Task ID = %d, Sum = %d, Message = %s\n",
+               my_data->thread_id, my_data->sum, my_data->message);
+        pthread_exit(NULL);
+    }
+
+    int main() {
+        pthread_t threads[NUM_THREADS];
+        struct thread_data thread_args[NUM_THREADS];
+
+        for (int i = 0; i < NUM_THREADS; i++) {
+            thread_args[i].thread_id = i;
+            thread_args[i].sum = i * 10;
+            thread_args[i].message = "Hello from thread!";
+
+            int rc = pthread_create(&threads[i], NULL, printHelloWorld, (void *)&thread_args[i]);
+            if (rc) {
+                printf("ERROR; return code from pthread_create() is %d\n", rc);
+                exit(-1);
+            }
+        }
+
+        for (int i = 0; i < NUM_THREADS; i++) {
+            pthread_join(threads[i], NULL);
+        }
+
+        return 0;
+    }
+
+D. Notes and Best Practices
+---------------------------
+
+- Avoid passing pointers to local variables to threads if those variables will go out of scope.
+- If you need each thread to have a unique message string, allocate memory separately or use string literals safely.
+- Always ensure thread data remains valid for the thread’s lifetime.
+- Synchronize access if multiple threads share and modify data.
+
+
+
+Common Thread Functions in POSIX (pthreads)
+==========================================
+
+This guide summarizes some commonly used POSIX thread (pthread) functions for thread identification, detachment, and stack management.
+
+A. pthread_self()
+-----------------
+Function:
+    pthread_t pthread_self(void);
+
+Description:
+    Returns the unique identifier of the calling thread.
+    Useful for logging or comparing thread IDs.
+
+Example:
+    pthread_t id = pthread_self();
+    printf("Current thread ID: %lu\n", (unsigned long)id);
+
+
+B. pthread_detach()
+-------------------
+Function:
+    int pthread_detach(pthread_t thread);
+
+Description:
+    Marks the thread identified by 'thread' as detached.
+    A detached thread's resources are automatically released when it terminates.
+    Once detached, a thread cannot be joined using pthread_join().
+
+Use Cases:
+    - Avoiding memory/resource leaks for short-lived threads
+    - Handling threads that don’t need to be joined
+    - Detaching the initial thread or worker threads
+
+Example:
+    pthread_t tid;
+    pthread_create(&tid, NULL, my_function, NULL);
+    pthread_detach(tid);
+
+
+C. Stack Management
+-------------------
+POSIX does not enforce a standard stack size for threads.
+Exceeding the default stack size can cause segmentation faults or program crashes.
+
+Use `pthread_attr_getstacksize` and `pthread_attr_setstacksize` to read and modify it.
+
+Example:
+
+    pthread_attr_t attr;
+    size_t stacksize;
+
+    pthread_attr_init(&attr);
+    pthread_attr_getstacksize(&attr, &stacksize);
+    printf("Default stack size = %zu bytes\n", stacksize);
+
+    // Optionally increase stack size before thread creation
+    stacksize *= 2;
+    pthread_attr_setstacksize(&attr, stacksize);
+
+    pthread_t tid;
+    pthread_create(&tid, &attr, my_function, NULL);
+
+
+D. pthread_equal()
+------------------
+Function:
+    int pthread_equal(pthread_t t1, pthread_t t2);
+
+Description:
+    Compares two thread IDs for equality.
+    Returns non-zero if they refer to the same thread.
+
+Example:
+    if (pthread_equal(pthread_self(), tid)) {
+        printf("Same thread.\n");
+    }
+
+
+E. pthread_once()
+-----------------
+Function:
+    int pthread_once(pthread_once_t *once_control, void (*init_routine)(void));
+
+Description:
+    Ensures that 'init_routine' is executed only once — even when called by multiple threads.
+    Used for thread-safe one-time initialization.
+
+Example:
+
+    pthread_once_t once_control = PTHREAD_ONCE_INIT;
+
+    void initialize() {
+        printf("Initialized only once.\n");
+    }
+
+    // In each thread:
+    pthread_once(&once_control, initialize);
+
+
+F. pthread_cancel()
+-------------------
+Function:
+    int pthread_cancel(pthread_t thread);
+
+Description:
+    Sends a cancellation request to a thread. The target thread must enable cancellation and check cancellation points (e.g., sleep, read).
+
+Example:
+    pthread_cancel(tid);
+
+Note:
+    Proper cancellation requires awareness of how/when threads are interrupted.
+    Use `pthread_setcancelstate()` and `pthread_setcanceltype()` to manage cancel behavior.
+
+
+
+Thread Synchronization
+======================
+
+Proper synchronization between threads is essential in multithreaded applications to ensure consistent behavior,
+protect shared data, and avoid common pitfalls such as race conditions and deadlocks. Below are the main concepts and tools used in thread synchronization.
+
+A. Race Condition
+-----------------
+Definition:
+    A race condition occurs when two or more threads access shared data concurrently, and the final outcome depends
+    on the sequence or timing of execution.
+
+Example:
+    int counter = 0;
+
+    void *increment(void *arg) {
+        for (int i = 0; i < 1000; i++) {
+            counter++;  // Not thread-safe
+        }
+        pthread_exit(NULL);
+    }
+
+Solution:
+    Use synchronization tools like mutexes to ensure only one thread modifies shared data at a time.
+
+
+B. Deadlocks
+------------
+Definition:
+    A deadlock occurs when two or more threads are blocked forever, each waiting on a resource held by the other.
+
+Common Cause:
+    Acquiring multiple locks in an inconsistent order.
+
+Prevention:
+    - Lock ordering
+    - Try-locking (`pthread_mutex_trylock`)
+    - Timeout mechanisms
+    - Avoid nested locking if possible
+
+
+C. Thread-Safe
+--------------
+Definition:
+    A function or block of code is thread-safe if it can be safely called by multiple threads at the same time without causing incorrect behavior.
+
+Ways to Achieve Thread-Safety:
+    - Use mutexes or other synchronization primitives
+    - Avoid shared state (prefer local variables or immutable data)
+    - Use atomic operations where applicable
+
+
+D. Mutual Exclusion
+-------------------
+Definition:
+    Ensures that only one thread accesses a critical section (shared resource) at a time.
+
+Implementation:
+    Use mutexes (`pthread_mutex_t`) to protect critical sections.
+
+    Example:
+        pthread_mutex_lock(&lock);
+        // critical section
+        pthread_mutex_unlock(&lock);
+
+
+E. Mutex (Mutual Exclusion Object)
+----------------------------------
+Definition:
+    A mutex is a synchronization primitive that allows exclusive access to a shared resource.
+
+Functions:
+    - pthread_mutex_init()
+    - pthread_mutex_lock()
+    - pthread_mutex_unlock()
+    - pthread_mutex_destroy()
+
+Example:
+    pthread_mutex_t lock;
+    pthread_mutex_init(&lock, NULL);
+
+    pthread_mutex_lock(&lock);
+    shared_variable++;
+    pthread_mutex_unlock(&lock);
+
+
+F. Atomic Operations and Condition Variables
+-------------------------------------------
+
+Atomic Operations:
+    Operations that complete in a single step relative to other threads. No other thread can observe them halfway through.
+
+    Example (using stdatomic.h in C11):
+        atomic_int count = 0;
+        atomic_fetch_add(&count, 1);
+
+Condition Variables:
+    Allow threads to wait for certain conditions to become true.
+
+Functions:
+    - pthread_cond_init()
+    - pthread_cond_wait()
+    - pthread_cond_signal()
+    - pthread_cond_broadcast()
+
+Usage Pattern:
+    pthread_mutex_lock(&mutex);
+    while (!condition_met) {
+        pthread_cond_wait(&cond, &mutex);
+    }
+    // proceed when condition is true
+    pthread_mutex_unlock(&mutex);
+
+    // Another thread signals the condition:
+    pthread_cond_signal(&cond);
+
+
+Mutex, Semaphores, and Barriers in POSIX Threads
+=================================================
+
+This guide covers three key synchronization primitives used in multithreaded programming with POSIX threads: mutexes, semaphores, and barriers.
+
+-------------------------------------------------
+Mutex (Mutual Exclusion)
+-------------------------------------------------
+A mutex ensures that only one thread can access a shared resource at a time.
+
+Key Functions:
+--------------
+- pthread_mutex_init()
+- pthread_mutex_lock()
+- pthread_mutex_unlock()
+- pthread_mutex_trylock()
+- pthread_mutex_destroy()
+
+Use Case:
+---------
+Protect a shared variable or critical section from concurrent access.
+
+Example:
+    pthread_mutex_t lock;
+    pthread_mutex_init(&lock, NULL);
+
+    pthread_mutex_lock(&lock);
+    // critical section
+    pthread_mutex_unlock(&lock);
+
+    pthread_mutex_destroy(&lock);
+
+
+-------------------------------------------------
+Semaphores
+-------------------------------------------------
+
+A semaphore is a signaling mechanism that can be used to control access to a resource by multiple threads.
+
+Include Header:
+    #include <semaphore.h>
+
+Key Functions:
+--------------
+- sem_init()
+- sem_wait()
+- sem_post()
+- sem_destroy()
+
+1. sem_init()
+   Initialize the semaphore.
+
+   Syntax:
+       int sem_init(sem_t *sem, int pshared, unsigned int value);
+
+   - `pshared = 0` for thread sharing
+   - `value`: initial value of the semaphore
+
+2. sem_wait()
+   Decreases the semaphore. Blocks if the value is 0.
+
+3. sem_post()
+   Increases the semaphore value. Unblocks one waiting thread if any.
+
+4. sem_destroy()
+   Cleans up the semaphore.
+
+Example:
+    sem_t sem;
+    sem_init(&sem, 0, 1);
+
+    sem_wait(&sem);
+    // critical section
+    sem_post(&sem);
+
+    sem_destroy(&sem);
+
+
+Use Cases:
+----------
+- Controlling access to a fixed number of identical resources (e.g., a pool of connections)
+- Producer-consumer problems
+
+
+-------------------------------------------------
+Barriers
+-------------------------------------------------
+Barriers synchronize a group of threads to wait until all threads reach a certain point.
+
+Include Header:
+    #include <pthread.h>
+
+Key Functions:
+--------------
+- pthread_barrier_init()
+- pthread_barrier_wait()
+- pthread_barrier_destroy()
+
+1. pthread_barrier_init()
+   Initializes the barrier.
+
+   Syntax:
+       int pthread_barrier_init(pthread_barrier_t *barrier,
+                                const pthread_barrierattr_t *attr,
+                                unsigned count);
+
+2. pthread_barrier_wait()
+   Blocks until the required number of threads have called this function.
+
+3. pthread_barrier_destroy()
+   Releases resources used by the barrier.
+
+Example:
+    pthread_barrier_t barrier;
+    pthread_barrier_init(&barrier, NULL, 3);  // 3 threads must reach
+
+    // In each thread:
+    printf("Waiting at barrier...\n");
+    pthread_barrier_wait(&barrier);
+    printf("Passed barrier!\n");
+
+    pthread_barrier_destroy(&barrier);
+
+
+Use Case:
+---------
+- Ensure a group of threads reach a certain point before continuing (e.g., synchronization stage)
+
+
+
+
+
+
+
+
+
+
