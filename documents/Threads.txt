@@ -534,13 +534,3 @@ Example:
 Use Case:
 ---------
 - Ensure a group of threads reach a certain point before continuing (e.g., synchronization stage)
-
-
-
-
-
-
-
-
-
-
