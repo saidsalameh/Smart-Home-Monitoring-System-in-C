@@ -1,0 +1,196 @@
+
+Timers in Linux
+===============
+
+Timers are essential in Linux systems for tasks such as measuring elapsed time, delaying execution, triggering events, and scheduling time-based operations. Linux provides several ways to interact with time, from human-readable calendar time to high-resolution process timers.
+
+Types of Time Measurements
+==========================
+
+Linux supports multiple notions of time, depending on the context:
+
+1. Wall Time
+   - Represents the actual calendar time and date (like what you see on a clock).
+   - Used in user interfaces or logging timestamps.
+   - Can be affected by changes to the system clock (e.g., manual updates, NTP sync).
+
+2. Process Time (CPU Time)
+   - Time spent by the CPU executing instructions for a process.
+   - Includes user and system time.
+   - May differ from wall time due to multitasking, scheduling, and system load.
+
+3. Monotonic Time
+   - Represents the time since some unspecified starting point (usually system boot).
+   - Always increases and is not affected by changes to the system clock.
+   - Suitable for measuring time intervals (e.g., elapsed time).
+
+Measurements can be:
+- Absolute: A fixed point in time (e.g., 8:00 AM UTC).
+- Relative: A duration or interval (e.g., sleep for 5 seconds).
+
+Clock Types in Linux
+====================
+Linux uses system timers, instantiated by the kernel. The POSIX API provides a consistent way to interact with these clocks and convert between clock ticks (Hz) and real time.
+
+Common POSIX clocks include:
+- CLOCK_REALTIME: Wall-clock time.
+- CLOCK_MONOTONIC: Monotonic time since boot.
+- CLOCK_PROCESS_CPUTIME_ID: CPU time used by the process.
+- CLOCK_THREAD_CPUTIME_ID: CPU time used by the calling thread.
+
+Getting and Setting Time
+========================
+
+Linux provides several libraries and system calls to get and set time.
+
+Include <time.h> for most standard functions.
+
+Simple time representation:
+typedef long time_t;
+
+A. Time Representations
+------------------------
+
+1. struct timeval (Microsecond Resolution)
+Used with older APIs like gettimeofday() and settimeofday().
+
+#include <sys/time.h>
+
+struct timeval {
+    time_t tv_sec;        // seconds
+    suseconds_t tv_usec;  // microseconds
+};
+
+Example:
+struct timeval tv;
+gettimeofday(&tv, NULL);
+printf("Time: %ld.%06ld\n", tv.tv_sec, tv.tv_usec);
+
+2. struct timespec (Nanosecond Resolution)
+Used with modern, high-resolution functions like clock_gettime().
+
+#include <time.h>
+
+struct timespec {
+    time_t tv_sec;  // seconds
+    long tv_nsec;   // nanoseconds
+};
+
+Example:
+struct timespec ts;
+clock_gettime(CLOCK_MONOTONIC, &ts);
+printf("Monotonic Time: %ld.%09ld\n", ts.tv_sec, ts.tv_nsec);
+
+3. struct tm (Human-Readable Format)
+Used to represent calendar time in a broken-down format (year, month, day, etc.)
+
+#include <time.h>
+
+struct tm *localtime(const time_t *timep);
+
+Example:
+time_t now = time(NULL);
+struct tm *lt = localtime(&now);
+printf("Time: %02d:%02d:%02d\n", lt->tm_hour, lt->tm_min, lt->tm_sec);
+
+Getting Time with clock_gettime()
+---------------------------------
+int clock_gettime(clockid_t clk_id, struct timespec *res);
+
+Sleeping (Delaying Execution)
+=============================
+
+Linux provides several methods to sleep for a specific duration.
+
+#include <unistd.h>
+#include <time.h>
+
+1. sleep(unsigned int seconds)
+Sleeps for the given number of seconds.
+Returns the number of seconds not slept if interrupted.
+
+sleep(5);  // Sleep for 5 seconds
+
+2. usleep(useconds_t usec)
+Sleeps for microseconds (1,000,000 µs = 1 second).
+Deprecated in POSIX.1-2008.
+
+usleep(500000);  // Sleep for 0.5 seconds
+
+3. nanosleep(const struct timespec *req, struct timespec *rem)
+Preferred high-resolution sleep function.
+
+struct timespec req = {2, 500000000};  // 2.5 seconds
+nanosleep(&req, NULL);
+
+Better Than Sleep: Timers and Alarms
+====================================
+
+Timers allow more flexible and precise scheduling than basic sleep functions.
+
+Timers - Alarm
+--------------
+
+The alarm() function sets a timer to send SIGALRM after a specified number of seconds.
+
+#include <unistd.h>
+#include <signal.h>
+#include <stdio.h>
+
+void handler(int signum) {
+    write(STDOUT_FILENO, "Alarm triggered!\n", 17);
+}
+
+int main() {
+    signal(SIGALRM, handler);  // Register signal handler
+    alarm(5);  // Send SIGALRM after 5 seconds
+    pause();  // Wait for signal
+    return 0;
+}
+
+Notes:
+- The process receives SIGALRM when the timer expires.
+- The alarm is one-shot (not periodic).
+- Signal reentrancy limitations apply: avoid unsafe functions in the handler.
+
+Timers - POSIX (More Flexible)
+------------------------------
+
+POSIX timers provide more features, such as:
+- Millisecond/nanosecond resolution.
+- Periodic timers.
+- Precise control over expiration and intervals.
+- Can notify via signal or thread.
+
+#include <signal.h>
+#include <time.h>
+#include <stdio.h>
+#include <string.h>
+
+void handler(int sig) {
+    write(STDOUT_FILENO, "POSIX timer expired!\n", 22);
+}
+
+int main() {
+    struct sigaction sa;
+    struct sigevent sev;
+    timer_t timerid;
+    struct itimerspec its;
+
+    memset(&sa, 0, sizeof(sa));
+    sa.sa_handler = handler;
+    sigaction(SIGRTMIN, &sa, NULL);
+
+    sev.sigev_notify = SIGEV_SIGNAL;
+    sev.sigev_signo = SIGRTMIN;
+    sev.sigev_value.sival_ptr = &timerid;
+    timer_create(CLOCK_REALTIME, &sev, &timerid);
+
+    its.it_value.tv_sec = 3;
+    its.it_value.tv_nsec = 0;
+    its.it_interval.tv_sec = 2;
+    its.it_interval.tv_nsec = 0;
+    timer_settime(timerid, 0, &its, NULL);
+
+    while (1) pause();  // Wait for timer signal
+}
