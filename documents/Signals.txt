@@ -1,0 +1,85 @@
+Signals in Linux
+================
+
+In Linux, signals serve as software interrupts that allow the handling of asynchronous events. 
+These events could come from external sources like a keypress (e.g., Ctrl+C), from the program itself, or from the kernel. 
+Signals can also be a way to facilitate interprocess communication (IPC) between processes. 
+The key point is that the events that cause signals are asynchronous, and the handler for these signals is also executed asynchronously.
+
+Signal Lifecycle
+================
+
+The lifecycle of a signal involves several steps:
+
+A. Raised (Sent or Generated)
+-----------------------------
+A signal is generated either by an external event or by the program or kernel itself. For example, when a user presses Ctrl+C, the kernel sends a SIGINT signal to the running process. 
+Signals can also be raised by system calls such as `kill()`, or by other processes to signal a specific event.
+
+B. Stored (by Kernel)
+----------------------
+Once a signal is generated, the kernel stores it for later handling. The kernel ensures that the signal is preserved in case the process is not in a state where it can immediately handle it.
+
+C. Handled by Kernel
+--------------------
+The kernel then decides how to handle the signal. There are several possible outcomes:
+   - **Ignore** (except for SIGKILL and SIGSTOP): Some signals can be ignored by a process if it doesn't have a specific handler set. For example, the signal SIGPIPE is ignored by default if a process writes to a pipe that has no readers.
+   - **Catch and Handle**: The process may define a handler function for the signal. When the signal occurs, the execution of the process is temporarily suspended, and the signal handler is invoked. Other signals may also be handled during this time. For example, when SIGINT (Ctrl+C) is received, it often suspends the current process, and the handler function is executed to gracefully terminate the process.
+   - **Perform the Default Action**: If no handler is set, the kernel performs the default action for the signal. This could include terminating the process or generating a core dump. For example, the default action for a segmentation fault (SIGSEGV) is to terminate the process and create a core dump for debugging.
+
+D. Signal Default Action
+------------------------
+Each signal has a default action that the kernel will perform if no handler is defined. Common default actions include:
+   - **Terminate**: SIGTERM (graceful termination of a process).
+   - **Ignore**: SIGCHLD (child process termination signal, typically ignored).
+   - **Core Dump**: SIGSEGV (segmentation fault).
+   - **Stop**: SIGSTOP (pauses the process execution).
+
+E. Common Signals
+-----------------
+Here are some of the most commonly used signals in Linux:
+   - **SIGABRT**: Sent by the `abort()` function. This signal terminates the program and generates a core dump.
+   - **SIGHUP**: Often used to instruct a process to reread its configuration files. For example, a web server may reload its configuration upon receiving SIGHUP.
+   - **SIGINT**: Sent by Ctrl+C in the terminal. It is commonly used to interrupt and terminate processes.
+   - **SIGKILL**: This signal cannot be ignored or handled. It immediately terminates the process unconditionally.
+   - **SIGSEGV**: Sent when a process accesses invalid memory, such as when dereferencing a null pointer.
+   - **SIGTERM**: A request for graceful termination. The process can handle this signal, perform cleanup, and then terminate.
+   - **SIGSTOP**: This signal is used to pause a process and cannot be ignored or caught by the process.
+
+Signal Management
+=================
+
+The standard library for working with signals in C is `<signal.h>`. The recommended method for managing signals is to use the `sigaction` system call.
+
+A. Sigaction Signal Handling
+-----------------------------
+Using `sigaction` provides better signal management capabilities compared to older methods like `signal()`. Some advantages of `sigaction` include:
+   - **Blocking New Signals During Handlers**: It allows you to block other signals while the handler is executing, which can prevent signals from interrupting each other.
+   - **Retrieving Signal State**: You can retrieve information about the signal, such as whether it was blocked before being delivered.
+   - **Custom Handler Setup**: In many cases, you only need to set the `sa_handler` field in the `sigaction` structure to specify a handler function for a particular signal.
+
+Example of setting a signal handler using `sigaction`:
+```c
+#include <stdio.h>
+#include <stdlib.h>
+#include <signal.h>
+
+void signal_handler(int sig) {
+    printf("Caught signal %d\n", sig);
+    exit(0);
+}
+
+int main() {
+    struct sigaction sa;
+    sa.sa_handler = signal_handler;
+    sa.sa_flags = 0;
+    sigemptyset(&sa.sa_mask);
+    
+    sigaction(SIGINT, &sa, NULL); // Set the handler for SIGINT
+
+    while (1) {
+        // Infinite loop, waiting for signals
+    }
+
+    return 0;
+}
