@@ -1,0 +1,203 @@
+
+Networking (Sockets)
+====================
+
+To enable communication over a network, we typically implement a **client-server** model using **sockets**. 
+
+TCP Protocol
+============
+
+TCP/IP is the foundational protocol suite of the Internet.
+
+TCP (Transmission Control Protocol) is **connection-oriented**, meaning it establishes a reliable connection between two endpoints before any data is transferred. The connection remains active until communication is terminated.
+
+Key Features:
+-------------
+A. Connection-oriented communication  
+B. Reliable delivery  
+C. Packet loss detection and retransmission  
+D. Packet sequencing  
+E. Duplicate packet handling  
+F. Full-duplex (simultaneous send/receive)  
+G. Flow and congestion control  
+
+Client–Server Model
+===================
+
+Two processes communicate across a network to exchange data.
+
+Types of servers:
+- **Iterative server**: Handles one client at a time.
+- **Concurrent server**: Spawns a new process/thread per client.
+
+Sockets (Client and Server)
+===========================
+
+Basic Steps:
+------------
+- Create a socket for communication (`socket()`)
+- Attach it to a local address (`bind()`)
+- Announce availability to accept connections (`listen()`)
+- Wait for incoming connections (`accept()`)
+- Establish connection from the client (`connect()`)
+- Transmit data (`send()`, `recv()`)
+- Terminate connection (`close()`)
+
+Socket API
+==========
+
+A. Required Headers:
+--------------------
+```c
+#include <sys/types.h>
+#include <sys/socket.h>
+#include <netinet/in.h>
+#include <netdb.h>
+#include <arpa/inet.h>
+```
+
+B. Port Numbers:
+----------------
+- Range: 1024 to 65535 for user-defined applications.
+- Default assignments can be viewed via `cat /etc/services`.
+
+C. IP Address Functions:
+------------------------
+- `int inet_aton(const char *cp, struct in_addr *inp)`  
+- `in_addr_t inet_addr(const char *cp)`  
+- `char *inet_ntoa(struct in_addr in)`  
+
+D. Common Structures:
+---------------------
+```c
+struct sockaddr {
+    unsigned short sa_family;
+    char sa_data[14];
+};
+// sa_family values include AF_INET, AF_INET6, etc.
+
+struct sockaddr_in {
+    short int sin_family;
+    unsigned short int sin_port;
+    struct in_addr sin_addr;
+    unsigned char sin_zero[8];
+};
+
+struct in_addr {
+    unsigned long s_addr;
+};
+
+struct hostent {
+    char *h_name;        // Official name of host
+    char **h_aliases;    // Alias list
+    int h_addrtype;      // Address type
+    int h_length;        // Length of address
+    char **h_addr_list;  // List of addresses
+};
+```
+
+Socket Communication Steps
+==========================
+1. Create socket: `socket()`  
+2. Bind address to socket: `bind()`  
+3. Listen for connections: `listen()`  
+4. Accept connection: `accept()`  
+5. Connect (on client side): `connect()`  
+
+Socket Functions
+================
+- `socket(int domain, int type, int protocol)` – create a new socket  
+- `connect(int sockfd, const struct sockaddr *addr, socklen_t addrlen)` – initiate a connection (client)  
+- `bind(int sockfd, const struct sockaddr *addr, socklen_t addrlen)` – assign address to socket  
+- `listen(int sockfd, int backlog)` – prepare socket to accept connections  
+- `accept(int sockfd, struct sockaddr *addr, socklen_t *addrlen)` – accept a new connection  
+- `read(int fd, void *buf, size_t count)` – read data  
+- `recv(int sockfd, void *buf, size_t len, int flags)` – receive data  
+- `recvfrom(...)` – used for datagram sockets  
+- `write(int fd, const void *buf, size_t count)` – write data  
+- `send(int sockfd, const void *buf, size_t len, int flags)` – send data  
+- `close(int fd)` – close socket  
+
+TCP/IP Packet Format
+====================
+
+A TCP/IP packet includes:
+1. IP Header
+2. TCP Header
+3. Payload (Data)
+
+1. IP Header (IPv4)
+-------------------
+Structure (20 bytes minimum):
+
+| Field                  | Size     | Description                                  |
+|------------------------|----------|----------------------------------------------|
+| Version                | 4 bits   | IP version                                   |
+| IHL                    | 4 bits   | Header length                                |
+| TOS                    | 8 bits   | Type of service                              |
+| Total Length           | 16 bits  | Total packet size                            |
+| Identification         | 16 bits  | Fragmentation ID                             |
+| Flags                  | 3 bits   | Control flags                                |
+| Fragment Offset        | 13 bits  | Fragment position                            |
+| TTL                    | 8 bits   | Time to Live                                 |
+| Protocol               | 8 bits   | Protocol (6 for TCP)                         |
+| Header Checksum        | 16 bits  | Error detection                              |
+| Source IP              | 32 bits  | Sender address                               |
+| Destination IP         | 32 bits  | Receiver address                             |
+| Options                | Variable | Optional fields                              |
+
+2. TCP Header
+-------------
+Structure (20 bytes minimum):
+
+| Field                 | Size     | Description                                  |
+|-----------------------|----------|----------------------------------------------|
+| Source Port           | 16 bits  | Source app port                              |
+| Destination Port      | 16 bits  | Destination app port                         |
+| Sequence Number       | 32 bits  | Byte position of the segment                 |
+| Acknowledgment Number | 32 bits  | Next byte expected                           |
+| Data Offset           | 4 bits   | Header size in 32-bit words                  |
+| Reserved              | 3 bits   | Reserved                                     |
+| Flags                 | 9 bits   | SYN, ACK, FIN, etc.                          |
+| Window Size           | 16 bits  | Buffer space                                 |
+| Checksum              | 16 bits  | Integrity check                              |
+| Urgent Pointer        | 16 bits  | Indicates urgent data                        |
+| Options               | Variable | Optional settings                            |
+
+Common TCP Flags:
+- SYN: Start connection
+- ACK: Acknowledge received data
+- FIN: Finish session
+- RST: Reset connection
+- PSH: Push to app
+- URG: Urgent data
+
+3. TCP/IP Packet Example
+------------------------
+| IP Header (20 bytes)  |
+| TCP Header (20 bytes) |
+| Data (variable)       |
+
+Example:
+- Source IP: 192.168.1.2
+- Destination IP: 142.250.180.14
+- Source Port: 50500
+- Destination Port: 80 (HTTP)
+
+4. Notes
+--------
+- Total packet = IP header + TCP header + data  
+- IP: routing and addressing  
+- TCP: reliability and ordering  
+
+5. Tools to View Packets
+------------------------
+- tcpdump  
+- Wireshark  
+- netstat / ss  
+
+6. Summary
+----------
+- IP Header = routing across devices  
+- TCP Header = ensures application-level reliability  
+- Together = base of protocols like HTTP, FTP, SSH  
